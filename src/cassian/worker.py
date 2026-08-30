@@ -2,12 +2,19 @@ import asyncio
 import contextlib
 
 from cassian.models import JobStatus
+from cassian.queueing import JobQueue
 from cassian.state import AppState
 
 
 class LocalWorker:
-    def __init__(self, state: AppState, chunk_delay_seconds: float = 0.05) -> None:
+    def __init__(
+        self,
+        state: AppState,
+        job_queue: JobQueue,
+        chunk_delay_seconds: float = 0.05,
+    ) -> None:
         self.state = state
+        self.job_queue = job_queue
         self.chunk_delay_seconds = chunk_delay_seconds
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
@@ -24,14 +31,18 @@ class LocalWorker:
 
     async def run(self) -> None:
         while not self._stop_event.is_set():
-            job_id = await self.state.queue.get()
-            self.state.mark_running(job_id)
+            message = await self.job_queue.receive()
+            if message is None:
+                continue
+
+            self.state.mark_running(message.job_id)
 
             try:
                 while True:
-                    job = self.state.advance_job(job_id)
+                    job = self.state.advance_job(message.job_id)
                     if job.status == JobStatus.COMPLETED:
+                        await self.job_queue.ack(message)
                         break
                     await asyncio.sleep(self.chunk_delay_seconds)
-            finally:
-                self.state.queue.task_done()
+            except Exception:
+                raise

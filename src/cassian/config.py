@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     s3_checkpoint_bucket: str | None = None
     s3_checkpoint_prefix: str = "cassian/checkpoints"
 
+    queue_backend: Literal["memory", "sqs"] = "memory"
+    sqs_queue_url: str | None = None
+    sqs_visibility_timeout: int = 120
+    sqs_wait_time_seconds: int = 5
+
+    worker_chunk_delay_seconds: float = 0.05
+
 
 @lru_cache
 def get_settings() -> Settings:
