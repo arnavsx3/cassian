@@ -5,7 +5,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from cassian.config import Settings
-from cassian.models import JobView
+from cassian.domain.models import JobView
 
 
 class CheckpointStore(Protocol):

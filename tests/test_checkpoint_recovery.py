@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from cassian.models import JobStatus, JobView
+from cassian.domain.models import JobStatus, JobView
 from cassian.queueing import InMemoryJobQueue
 from cassian.state import AppState
 from cassian.storage import FileCheckpointStore

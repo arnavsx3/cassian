@@ -4,7 +4,7 @@ import boto3
 from botocore.response import StreamingBody
 from botocore.stub import Stubber
 
-from cassian.models import JobStatus, JobView
+from cassian.domain.models import JobStatus, JobView
 from cassian.storage import S3CheckpointStore
 
 
