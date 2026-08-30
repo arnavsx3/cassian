@@ -4,13 +4,13 @@ import pytest
 
 from cassian.models import JobStatus, JobView
 from cassian.state import AppState
-from cassian.storage import CheckpointStore
+from cassian.storage import FileCheckpointStore
 from cassian.worker import LocalWorker
 
 
 @pytest.mark.asyncio
 async def test_job_recovers_from_latest_checkpoint(tmp_path) -> None:
-    checkpoint_store = CheckpointStore(base_path=tmp_path)
+    checkpoint_store = FileCheckpointStore(base_path=tmp_path)
 
     first_state = AppState(checkpoint_store=checkpoint_store)
     first_worker = LocalWorker(state=first_state, chunk_delay_seconds=1.0)

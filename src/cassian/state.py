@@ -1,14 +1,14 @@
 import asyncio
 
 from cassian.models import JobStatus, JobView
-from cassian.storage import CheckpointStore
+from cassian.storage import CheckpointStore, FileCheckpointStore
 
 
 class AppState:
     def __init__(self, checkpoint_store: CheckpointStore | None = None) -> None:
         self.queue: asyncio.Queue[str] = asyncio.Queue()
         self.jobs: dict[str, JobView] = {}
-        self.checkpoint_store = checkpoint_store or CheckpointStore()
+        self.checkpoint_store = checkpoint_store or FileCheckpointStore()
 
     async def submit_job(self, job: JobView) -> JobView:
         self.jobs[job.job_id] = job
@@ -51,7 +51,8 @@ class AppState:
         job.processed_records = next_value
         job.last_checkpoint_records = next_value
         job.progress_percent = round(
-            (job.processed_records / job.total_records) * 100, 2
+            (job.processed_records / job.total_records) * 100,
+            2,
         )
 
         if job.processed_records >= job.total_records:

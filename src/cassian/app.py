@@ -2,11 +2,15 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
+from cassian.config import get_settings
 from cassian.models import JobCreate, JobView
 from cassian.state import AppState
+from cassian.storage import build_checkpoint_store
 from cassian.worker import LocalWorker
 
-state = AppState()
+settings = get_settings()
+checkpoint_store = build_checkpoint_store(settings)
+state = AppState(checkpoint_store=checkpoint_store)
 worker = LocalWorker(state=state)
 
 
@@ -24,6 +28,11 @@ app = FastAPI(title="Cassian", version="0.1.0", lifespan=lifespan)
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/system/checkpoints")
+async def checkpoint_config() -> dict[str, str]:
+    return {"backend": settings.checkpoint_backend}
 
 
 @app.post("/jobs", response_model=JobView, status_code=201)
