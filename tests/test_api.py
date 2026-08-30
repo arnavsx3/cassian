@@ -38,4 +38,5 @@ def test_job_flows_to_completion() -> None:
         assert final_payload is not None
         assert final_payload["status"] == "COMPLETED"
         assert final_payload["processed_records"] == 100_000
+        assert final_payload["last_checkpoint_records"] == 100_000
         assert final_payload["progress_percent"] == 100.0

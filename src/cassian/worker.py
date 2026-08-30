@@ -27,10 +27,11 @@ class LocalWorker:
             job_id = await self.state.queue.get()
             self.state.mark_running(job_id)
 
-            while True:
-                job = self.state.advance_job(job_id)
-                if job.status == JobStatus.COMPLETED:
-                    break
-                await asyncio.sleep(self.chunk_delay_seconds)
-
-            self.state.queue.task_done()
+            try:
+                while True:
+                    job = self.state.advance_job(job_id)
+                    if job.status == JobStatus.COMPLETED:
+                        break
+                    await asyncio.sleep(self.chunk_delay_seconds)
+            finally:
+                self.state.queue.task_done()

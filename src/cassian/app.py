@@ -12,6 +12,7 @@ worker = LocalWorker(state=state)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    state.restore_incomplete_jobs()
     worker.start()
     yield
     await worker.stop()

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class JobStatus(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
+    RECOVERING = "RECOVERING"
     COMPLETED = "COMPLETED"
 
 
@@ -22,6 +23,8 @@ class JobView(BaseModel):
     chunk_size: int
     processed_records: int
     progress_percent: float
+    last_checkpoint_records: int
+    recovery_count: int
 
     @classmethod
     def new(cls, total_records: int, chunk_size: int) -> "JobView":
@@ -32,4 +35,6 @@ class JobView(BaseModel):
             chunk_size=chunk_size,
             processed_records=0,
             progress_percent=0.0,
+            last_checkpoint_records=0,
+            recovery_count=0,
         )
