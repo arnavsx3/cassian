@@ -5,8 +5,8 @@ from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 
 from cassian.app import create_app
-from cassian.queueing import InMemoryJobQueue
-from cassian.storage import FileCheckpointStore
+from cassian.infra.checkpoints import FileCheckpointStore
+from cassian.infra.queueing import InMemoryJobQueue
 
 
 @pytest.mark.asyncio

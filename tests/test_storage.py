@@ -5,7 +5,7 @@ from botocore.response import StreamingBody
 from botocore.stub import Stubber
 
 from cassian.domain.models import JobStatus, JobView
-from cassian.storage import S3CheckpointStore
+from cassian.infra.checkpoints import S3CheckpointStore
 
 
 def test_s3_checkpoint_store_round_trip() -> None:

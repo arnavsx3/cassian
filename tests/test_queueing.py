@@ -4,7 +4,7 @@ import boto3
 import pytest
 from botocore.stub import Stubber
 
-from cassian.queueing import InMemoryJobQueue, SqsJobQueue
+from cassian.infra.queueing import InMemoryJobQueue, SqsJobQueue
 
 
 @pytest.mark.asyncio
@@ -67,6 +67,8 @@ async def test_sqs_queue_round_trip() -> None:
 
         await queue.enqueue("JOB-1234")
         message = await queue.receive()
+
         assert message is not None
         assert message.job_id == "JOB-1234"
+
         await queue.ack(message)

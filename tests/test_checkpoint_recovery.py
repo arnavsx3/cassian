@@ -2,11 +2,11 @@ import asyncio
 
 import pytest
 
-from cassian.domain.models import JobStatus, JobView
-from cassian.queueing import InMemoryJobQueue
-from cassian.state import AppState
-from cassian.storage import FileCheckpointStore
-from cassian.worker import LocalWorker
+from cassian.domain.models import JobStatus
+from cassian.infra.checkpoints import FileCheckpointStore
+from cassian.infra.queueing import InMemoryJobQueue
+from cassian.services.job_state import AppState
+from cassian.workers.local_worker import LocalWorker
 
 
 @pytest.mark.asyncio
@@ -15,11 +15,13 @@ async def test_job_recovers_from_latest_checkpoint(tmp_path) -> None:
     first_queue = InMemoryJobQueue()
     first_state = AppState(checkpoint_store=checkpoint_store)
     first_worker = LocalWorker(
-        state=first_state, job_queue=first_queue, chunk_delay_seconds=1.0
+        state=first_state,
+        job_queue=first_queue,
+        chunk_delay_seconds=1.0,
     )
 
-    job = JobView.new(total_records=150_000, chunk_size=50_000)
-    first_state.register_job(job)
+    job = first_state.create_job(total_records=150_000, chunk_size=50_000)
+    first_state.mark_queued(job.job_id)
     await first_queue.enqueue(job.job_id)
 
     first_worker.start()
@@ -29,15 +31,21 @@ async def test_job_recovers_from_latest_checkpoint(tmp_path) -> None:
     checkpointed_job = checkpoint_store.load_job(job.job_id)
     assert checkpointed_job is not None
     assert checkpointed_job.processed_records == 50_000
+    assert checkpointed_job.last_checkpoint_records == 50_000
 
     recovered_queue = InMemoryJobQueue()
     recovered_state = AppState(checkpoint_store=checkpoint_store)
-    for job_id in recovered_state.restore_incomplete_jobs():
+
+    for job_id in recovered_state.restore_incomplete_jobs(
+        requeue_submitting_only=False
+    ):
         await recovered_queue.enqueue(job_id)
 
     recovered_job = recovered_state.get_job(job.job_id)
     assert recovered_job is not None
     assert recovered_job.status == JobStatus.RECOVERING
+    assert recovered_job.recovery_count == 1
+    assert recovered_job.processed_records == 50_000
 
     recovered_worker = LocalWorker(
         state=recovered_state,
@@ -48,9 +56,10 @@ async def test_job_recovers_from_latest_checkpoint(tmp_path) -> None:
 
     final_job = None
     for _ in range(50):
-        final_job = recovered_state.get_job(job.job_id)
-        assert final_job is not None
-        if final_job.status == JobStatus.COMPLETED:
+        current_job = recovered_state.get_job(job.job_id)
+        assert current_job is not None
+        final_job = current_job
+        if current_job.status == JobStatus.COMPLETED:
             break
         await asyncio.sleep(0.02)
 
@@ -58,4 +67,6 @@ async def test_job_recovers_from_latest_checkpoint(tmp_path) -> None:
 
     assert final_job is not None
     assert final_job.status == JobStatus.COMPLETED
+    assert final_job.processed_records == 150_000
+    assert final_job.last_checkpoint_records == 150_000
     assert final_job.recovery_count == 1
