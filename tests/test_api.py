@@ -1,4 +1,4 @@
-import asyncio
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,26 +17,23 @@ async def test_health() -> None:
     assert response.json() == {"status": "ok"}
 
 
-@pytest.mark.asyncio
-async def test_job_flows_to_completion() -> None:
-    with TestClient(app):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            create_response = await client.post(
-                "/jobs",
-                json={"total_records": 100_000, "chunk_size": 50_000},
-            )
+def test_job_flows_to_completion() -> None:
+    with TestClient(app) as client:
+        create_response = client.post(
+            "/jobs",
+            json={"total_records": 100_000, "chunk_size": 50_000},
+        )
 
-            assert create_response.status_code == 201
-            job_id = create_response.json()["job_id"]
+        assert create_response.status_code == 201
+        job_id = create_response.json()["job_id"]
 
-            final_payload = None
-            for _ in range(20):
-                job_response = await client.get(f"/jobs/{job_id}")
-                final_payload = job_response.json()
-                if final_payload["status"] == "COMPLETED":
-                    break
-                await asyncio.sleep(0.05)
+        final_payload = None
+        for _ in range(20):
+            job_response = client.get(f"/jobs/{job_id}")
+            final_payload = job_response.json()
+            if final_payload["status"] == "COMPLETED":
+                break
+            time.sleep(0.05)
 
         assert final_payload is not None
         assert final_payload["status"] == "COMPLETED"
