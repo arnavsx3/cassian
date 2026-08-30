@@ -36,13 +36,9 @@ class LocalWorker:
                 continue
 
             self.state.mark_running(message.job_id)
-
-            try:
-                while True:
-                    job = self.state.advance_job(message.job_id)
-                    if job.status == JobStatus.COMPLETED:
-                        await self.job_queue.ack(message)
-                        break
-                    await asyncio.sleep(self.chunk_delay_seconds)
-            except Exception:
-                raise
+            while True:
+                job = self.state.advance_job(message.job_id)
+                if job.status == JobStatus.COMPLETED:
+                    await self.job_queue.ack(message)
+                    break
+                await asyncio.sleep(self.chunk_delay_seconds)
