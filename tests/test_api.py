@@ -1,10 +1,12 @@
 import asyncio
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from cassian.app import app
 
 
+@pytest.mark.asyncio
 async def test_health() -> None:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -14,6 +16,7 @@ async def test_health() -> None:
     assert response.json() == {"status": "ok"}
 
 
+@pytest.mark.asyncio
 async def test_job_flows_to_completion() -> None:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
