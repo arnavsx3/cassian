@@ -1,2 +1,3 @@
-def main() -> None:
-    print("Hello from cassian!")
+from cassian.main import main
+
+__all__ = ["main"]
