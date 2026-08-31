@@ -22,5 +22,6 @@ async def runtime_config(request: Request) -> dict[str, str | bool]:
         "queue_backend": settings.queue_backend,
         "checkpoint_backend": settings.checkpoint_backend,
         "embedded_worker_enabled": settings.embedded_worker_enabled,
+        "worker_execution_mode": settings.worker_execution_mode,
         "aws_enabled": settings.aws_enabled,
     }
