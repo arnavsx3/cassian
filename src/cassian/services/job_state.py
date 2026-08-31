@@ -13,6 +13,12 @@ class AppState:
         self.checkpoint_store.save_job(job)
         return job
 
+    def mark_submission_failed(self, job_id: str) -> JobView:
+        job = self.jobs[job_id]
+        job.status = JobStatus.SUBMISSION_FAILED
+        self.checkpoint_store.save_job(job)
+        return job
+
     def mark_queued(self, job_id: str) -> JobView:
         job = self.jobs[job_id]
         job.status = JobStatus.QUEUED
@@ -34,7 +40,7 @@ class AppState:
 
             should_enqueue = False
 
-            if job.status == JobStatus.SUBMITTING:
+            if job.status in {JobStatus.SUBMITTING, JobStatus.SUBMISSION_FAILED}:
                 job.status = JobStatus.QUEUED
                 should_enqueue = True
             elif job.processed_records > 0:

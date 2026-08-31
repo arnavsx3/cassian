@@ -21,7 +21,7 @@ class FailingJobQueue:
 
 
 @pytest.mark.asyncio
-async def test_failed_submission_does_not_leave_a_queued_job(tmp_path) -> None:
+async def test_failed_submission_marks_job_as_submission_failed(tmp_path) -> None:
     checkpoint_store = FileCheckpointStore(base_path=tmp_path / "checkpoints")
     app = create_app(
         checkpoint_store=checkpoint_store,
@@ -40,5 +40,5 @@ async def test_failed_submission_does_not_leave_a_queued_job(tmp_path) -> None:
 
     jobs = checkpoint_store.load_all_jobs()
     assert len(jobs) == 1
-    assert jobs[0].status == JobStatus.SUBMITTING
+    assert jobs[0].status == JobStatus.SUBMISSION_FAILED
     assert jobs[0].processed_records == 0

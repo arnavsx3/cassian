@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class JobStatus(str, Enum):
     SUBMITTING = "SUBMITTING"
+    SUBMISSION_FAILED = "SUBMISSION_FAILED"
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     RECOVERING = "RECOVERING"
