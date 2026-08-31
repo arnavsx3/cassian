@@ -6,6 +6,16 @@ from cassian.infra.queueing import InMemoryJobQueue
 from cassian.services.job_state import AppState
 
 
+class StubWorkerDispatcher:
+    def dispatch(self, *, job_id: str):
+        class Launch:
+            instance_id = "i-1234567890abcdef0"
+            instance_type = "t3.micro"
+            market_type = "spot"
+
+        return Launch()
+
+
 @pytest.mark.asyncio
 async def test_controller_submits_and_marks_job_queued(tmp_path) -> None:
     checkpoint_store = FileCheckpointStore(base_path=tmp_path / "checkpoints")
@@ -21,6 +31,23 @@ async def test_controller_submits_and_marks_job_queued(tmp_path) -> None:
     stored_job = checkpoint_store.load_job(job.job_id)
     assert stored_job is not None
     assert stored_job.status == "QUEUED"
+
+
+@pytest.mark.asyncio
+async def test_controller_records_worker_launch_metadata(tmp_path) -> None:
+    checkpoint_store = FileCheckpointStore(base_path=tmp_path / "checkpoints")
+    job_queue = InMemoryJobQueue()
+    controller = JobController(
+        state=AppState(checkpoint_store=checkpoint_store),
+        job_queue=job_queue,
+        worker_dispatcher=StubWorkerDispatcher(),
+    )
+
+    job = await controller.submit_job(total_records=100_000, chunk_size=50_000)
+
+    assert job.worker_instance_id == "i-1234567890abcdef0"
+    assert job.worker_instance_type == "t3.micro"
+    assert job.worker_market_type == "spot"
 
 
 @pytest.mark.asyncio
