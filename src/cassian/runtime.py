@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
+from cassian.controller.ec2_launcher import Ec2WorkerLauncher
 from cassian.controller.job_controller import JobController
+from cassian.controller.worker_dispatcher import WorkerDispatcher
 from cassian.core.aws import build_sqs_client
 from cassian.core.config import Settings, get_settings
 from cassian.infra.checkpoints import CheckpointStore, build_checkpoint_store
@@ -45,7 +47,18 @@ def build_runtime(
     job_queue = job_queue or build_job_queue(settings)
 
     job_state = AppState(checkpoint_store=checkpoint_store)
-    job_controller = JobController(state=job_state, job_queue=job_queue)
+
+    worker_dispatcher = WorkerDispatcher(
+        settings=settings,
+        ec2_launcher=Ec2WorkerLauncher(settings),
+    )
+
+    job_controller = JobController(
+        state=job_state,
+        job_queue=job_queue,
+        worker_dispatcher=worker_dispatcher,
+    )
+
     worker = LocalWorker(
         state=job_state,
         job_queue=job_queue,
