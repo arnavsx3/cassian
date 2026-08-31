@@ -10,10 +10,12 @@ class JobController:
         state: AppState,
         job_queue: JobQueue,
         worker_dispatcher: WorkerDispatchPort | None = None,
+        enqueue_jobs: bool = True,
     ) -> None:
         self.state = state
         self.job_queue = job_queue
         self.worker_dispatcher = worker_dispatcher
+        self.enqueue_jobs = enqueue_jobs
 
     async def submit_job(self, total_records: int, chunk_size: int) -> JobView:
         job = self.state.create_job(
@@ -22,12 +24,15 @@ class JobController:
         )
 
         try:
-            await self.job_queue.enqueue(job.job_id)
+            job = self.state.mark_queued(job.job_id)
+
+            if self.enqueue_jobs:
+                await self.job_queue.enqueue(job.job_id)
 
             if self.worker_dispatcher is not None:
                 launch = self.worker_dispatcher.dispatch(job_id=job.job_id)
                 if launch is not None:
-                    self.state.attach_worker_launch(
+                    job = self.state.attach_worker_launch(
                         job.job_id,
                         instance_id=launch.instance_id,
                         instance_type=launch.instance_type,
@@ -37,12 +42,15 @@ class JobController:
             self.state.mark_submission_failed(job.job_id)
             raise
 
-        return self.state.mark_queued(job.job_id)
+        return job
 
     async def restore_jobs(self, *, requeue_submitting_only: bool) -> None:
         job_ids_to_enqueue = self.state.restore_incomplete_jobs(
             requeue_submitting_only=requeue_submitting_only
         )
+
+        if not self.enqueue_jobs:
+            return
 
         for job_id in job_ids_to_enqueue:
             await self.job_queue.enqueue(job_id)
