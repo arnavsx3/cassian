@@ -3,8 +3,6 @@ import json
 from dataclasses import dataclass
 from typing import Protocol
 
-import boto3
-
 
 @dataclass(slots=True)
 class QueueMessage:
@@ -36,15 +34,14 @@ class SqsJobQueue:
     def __init__(
         self,
         queue_url: str,
-        region_name: str,
+        client,
         wait_time_seconds: int = 5,
         visibility_timeout: int = 120,
-        client=None,
     ) -> None:
         self.queue_url = queue_url
         self.wait_time_seconds = wait_time_seconds
         self.visibility_timeout = visibility_timeout
-        self.client = client or boto3.client("sqs", region_name=region_name)
+        self.client = client
 
     async def enqueue(self, job_id: str) -> None:
         await asyncio.to_thread(
