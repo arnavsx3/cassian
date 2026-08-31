@@ -5,9 +5,22 @@ router = APIRouter(prefix="/system", tags=["system"])
 
 @router.get("/queue")
 async def queue_config(request: Request) -> dict[str, str]:
-    return {"backend": request.app.state.settings.queue_backend}
+    settings = request.app.state.settings
+    return {"backend": settings.queue_backend}
 
 
 @router.get("/checkpoints")
 async def checkpoint_config(request: Request) -> dict[str, str]:
-    return {"backend": request.app.state.settings.checkpoint_backend}
+    settings = request.app.state.settings
+    return {"backend": settings.checkpoint_backend}
+
+
+@router.get("/runtime")
+async def runtime_config(request: Request) -> dict[str, str | bool]:
+    settings = request.app.state.settings
+    return {
+        "queue_backend": settings.queue_backend,
+        "checkpoint_backend": settings.checkpoint_backend,
+        "embedded_worker_enabled": settings.embedded_worker_enabled,
+        "aws_enabled": settings.aws_enabled,
+    }
