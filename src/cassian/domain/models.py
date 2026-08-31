@@ -27,6 +27,8 @@ class JobView(BaseModel):
     progress_percent: float
     last_checkpoint_records: int
     recovery_count: int
+    checkpoint_count: int
+    result_checksum: int
 
     @classmethod
     def new(cls, total_records: int, chunk_size: int) -> "JobView":
@@ -39,4 +41,6 @@ class JobView(BaseModel):
             progress_percent=0.0,
             last_checkpoint_records=0,
             recovery_count=0,
+            checkpoint_count=0,
+            result_checksum=0,
         )
