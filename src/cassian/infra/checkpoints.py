@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Protocol
 
-import boto3
 from botocore.exceptions import ClientError
 
+from cassian.core.aws import build_s3_client
 from cassian.core.config import Settings
 from cassian.domain.models import JobView
 
@@ -47,7 +47,7 @@ class S3CheckpointStore:
     ) -> None:
         self.bucket = bucket
         self.prefix = prefix.strip("/")
-        self.client = client or boto3.client("s3")
+        self.client = client
 
     def save_job(self, job: JobView) -> None:
         payload = job.model_dump_json(indent=2).encode("utf-8")
@@ -106,12 +106,10 @@ def build_checkpoint_store(settings: Settings) -> CheckpointStore:
     if settings.checkpoint_backend == "filesystem":
         return FileCheckpointStore(base_path=settings.checkpoint_dir)
 
-    if not settings.aws_region:
-        raise ValueError("AWS_REGION is required when CHECKPOINT_BACKEND=s3")
     if not settings.s3_checkpoint_bucket:
         raise ValueError("S3_CHECKPOINT_BUCKET is required when CHECKPOINT_BACKEND=s3")
 
-    s3_client = boto3.client("s3", region_name=settings.aws_region)
+    s3_client = build_s3_client(settings)
     return S3CheckpointStore(
         bucket=settings.s3_checkpoint_bucket,
         prefix=settings.s3_checkpoint_prefix,
