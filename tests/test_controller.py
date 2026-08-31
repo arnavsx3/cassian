@@ -1,5 +1,6 @@
 import pytest
 
+from cassian.controller.ec2_launcher import WorkerLaunchResult
 from cassian.controller.job_controller import JobController
 from cassian.infra.checkpoints import FileCheckpointStore
 from cassian.infra.queueing import InMemoryJobQueue
@@ -7,13 +8,12 @@ from cassian.services.job_state import AppState
 
 
 class StubWorkerDispatcher:
-    def dispatch(self, *, job_id: str):
-        class Launch:
-            instance_id = "i-1234567890abcdef0"
-            instance_type = "t3.micro"
-            market_type = "spot"
-
-        return Launch()
+    def dispatch(self, *, job_id: str) -> WorkerLaunchResult | None:
+        return WorkerLaunchResult(
+            instance_id="i-1234567890abcdef0",
+            instance_type="t3.micro",
+            market_type="spot",
+        )
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,4 @@
-from cassian.controller.worker_dispatcher import WorkerDispatcher
+from cassian.controller.worker_dispatcher import WorkerDispatchPort
 from cassian.domain.models import JobView
 from cassian.infra.queueing import JobQueue
 from cassian.services.job_state import AppState
@@ -9,7 +9,7 @@ class JobController:
         self,
         state: AppState,
         job_queue: JobQueue,
-        worker_dispatcher: WorkerDispatcher | None = None,
+        worker_dispatcher: WorkerDispatchPort | None = None,
     ) -> None:
         self.state = state
         self.job_queue = job_queue

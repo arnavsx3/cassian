@@ -49,6 +49,7 @@ async def test_runtime_endpoint(tmp_path) -> None:
         "queue_backend": "memory",
         "checkpoint_backend": "filesystem",
         "embedded_worker_enabled": False,
+        "worker_execution_mode": "local",
         "aws_enabled": False,
     }
 

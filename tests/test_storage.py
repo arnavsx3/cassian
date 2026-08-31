@@ -27,6 +27,9 @@ def test_s3_checkpoint_store_round_trip() -> None:
         recovery_count=1,
         checkpoint_count=1,
         result_checksum=123456,
+        worker_instance_id=None,
+        worker_instance_type=None,
+        worker_market_type=None,
     )
     payload = job.model_dump_json(indent=2)
 

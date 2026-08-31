@@ -50,7 +50,9 @@ def build_runtime(
 
     worker_dispatcher = WorkerDispatcher(
         settings=settings,
-        ec2_launcher=Ec2WorkerLauncher(settings),
+        ec2_launcher=Ec2WorkerLauncher(settings)
+        if settings.worker_execution_mode == "ec2"
+        else None,
     )
 
     job_controller = JobController(
