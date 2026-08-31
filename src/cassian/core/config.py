@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,13 +27,24 @@ class Settings(BaseSettings):
     worker_chunk_delay_seconds: float = 0.05
     embedded_worker_enabled: bool = True
     worker_poll_interval_seconds: float = 1.0
+    worker_execution_mode: Literal["local", "ec2"] = "local"
+
+    ec2_worker_ami_id: str | None = None
+    ec2_worker_instance_type: str | None = None
+    ec2_worker_instance_profile_name: str | None = None
+    ec2_worker_subnet_id: str | None = None
+    ec2_worker_security_group_ids: list[str] = Field(default_factory=list)
 
     default_total_records: int = 200_000
     default_chunk_size: int = 50_000
 
     @property
     def aws_enabled(self) -> bool:
-        return self.queue_backend == "sqs" or self.checkpoint_backend == "s3"
+        return (
+            self.queue_backend == "sqs"
+            or self.checkpoint_backend == "s3"
+            or self.worker_execution_mode == "ec2"
+        )
 
 
 @lru_cache
