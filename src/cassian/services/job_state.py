@@ -1,29 +1,26 @@
 from cassian.domain.models import JobStatus, JobView
 from cassian.infra.checkpoints import CheckpointStore, FileCheckpointStore
+from cassian.services.job_repository import JobRepository
 
 
 class AppState:
     def __init__(self, checkpoint_store: CheckpointStore | None = None) -> None:
-        self.jobs: dict[str, JobView] = {}
-        self.checkpoint_store = checkpoint_store or FileCheckpointStore()
+        checkpoint_store = checkpoint_store or FileCheckpointStore()
+        self.job_repository = JobRepository(checkpoint_store=checkpoint_store)
 
     def create_job(self, total_records: int, chunk_size: int) -> JobView:
         job = JobView.new(total_records=total_records, chunk_size=chunk_size)
-        self.jobs[job.job_id] = job
-        self.checkpoint_store.save_job(job)
-        return job
+        return self.job_repository.create(job)
 
     def mark_submission_failed(self, job_id: str) -> JobView:
         job = self._require_job(job_id)
         job.status = JobStatus.SUBMISSION_FAILED
-        self._save(job)
-        return job
+        return self.job_repository.save(job)
 
     def mark_queued(self, job_id: str) -> JobView:
         job = self._require_job(job_id)
         job.status = JobStatus.QUEUED
-        self._save(job)
-        return job
+        return self.job_repository.save(job)
 
     def restore_incomplete_jobs(
         self,
@@ -32,9 +29,7 @@ class AppState:
     ) -> list[str]:
         job_ids_to_enqueue: list[str] = []
 
-        for job in self.checkpoint_store.load_all_jobs():
-            self.jobs[job.job_id] = job
-
+        for job in self.job_repository.list():
             if job.status == JobStatus.COMPLETED:
                 continue
 
@@ -51,7 +46,7 @@ class AppState:
                 job.status = JobStatus.QUEUED
                 should_enqueue = not requeue_submitting_only
 
-            self._save(job)
+            self.job_repository.save(job)
 
             if should_enqueue:
                 job_ids_to_enqueue.append(job.job_id)
@@ -59,26 +54,17 @@ class AppState:
         return job_ids_to_enqueue
 
     def get_job(self, job_id: str) -> JobView | None:
-        cached = self.jobs.get(job_id)
-        if cached is not None:
-            return cached
-
-        stored = self.checkpoint_store.load_job(job_id)
-        if stored is not None:
-            self.jobs[job_id] = stored
-        return stored
+        return self.job_repository.get(job_id)
 
     def list_jobs(self) -> list[JobView]:
-        jobs = self.checkpoint_store.load_all_jobs()
-        self.jobs = {job.job_id: job for job in jobs}
-        return jobs
+        return self.job_repository.list()
 
-    def mark_running(self, job_id: str) -> None:
+    def mark_running(self, job_id: str) -> JobView:
         job = self._require_job(job_id)
         job.status = (
             JobStatus.RUNNING if job.processed_records == 0 else JobStatus.RECOVERING
         )
-        self._save(job)
+        return self.job_repository.save(job)
 
     def advance_job(self, job_id: str) -> JobView:
         job = self._require_job(job_id)
@@ -95,15 +81,10 @@ class AppState:
         if job.processed_records >= job.total_records:
             job.status = JobStatus.COMPLETED
 
-        self._save(job)
-        return job
+        return self.job_repository.save(job)
 
     def _require_job(self, job_id: str) -> JobView:
-        job = self.get_job(job_id)
+        job = self.job_repository.get(job_id)
         if job is None:
             raise KeyError(f"Unknown job_id: {job_id}")
         return job
-
-    def _save(self, job: JobView) -> None:
-        self.jobs[job.job_id] = job
-        self.checkpoint_store.save_job(job)
