@@ -1,12 +1,18 @@
 from cassian.domain.models import JobStatus, JobView
 from cassian.infra.checkpoints import CheckpointStore, FileCheckpointStore
 from cassian.services.job_repository import JobRepository
+from cassian.workloads.processor import WorkloadProcessor
 
 
 class AppState:
-    def __init__(self, checkpoint_store: CheckpointStore | None = None) -> None:
+    def __init__(
+        self,
+        checkpoint_store: CheckpointStore | None = None,
+        workload_processor: WorkloadProcessor | None = None,
+    ) -> None:
         checkpoint_store = checkpoint_store or FileCheckpointStore()
         self.job_repository = JobRepository(checkpoint_store=checkpoint_store)
+        self.workload_processor = workload_processor or WorkloadProcessor()
 
     def create_job(self, total_records: int, chunk_size: int) -> JobView:
         job = JobView.new(total_records=total_records, chunk_size=chunk_size)
@@ -68,15 +74,7 @@ class AppState:
 
     def advance_job(self, job_id: str) -> JobView:
         job = self._require_job(job_id)
-        job.processed_records = min(
-            job.processed_records + job.chunk_size,
-            job.total_records,
-        )
-        job.last_checkpoint_records = job.processed_records
-        job.progress_percent = round(
-            (job.processed_records / job.total_records) * 100,
-            2,
-        )
+        job = self.workload_processor.process_chunk(job)
 
         if job.processed_records >= job.total_records:
             job.status = JobStatus.COMPLETED
