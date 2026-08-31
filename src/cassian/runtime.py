@@ -59,6 +59,7 @@ def build_runtime(
         state=job_state,
         job_queue=job_queue,
         worker_dispatcher=worker_dispatcher,
+        enqueue_jobs=settings.worker_execution_mode == "local",
     )
 
     worker = LocalWorker(

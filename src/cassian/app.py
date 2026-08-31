@@ -28,13 +28,18 @@ def create_app(
             requeue_submitting_only=runtime.settings.queue_backend == "sqs"
         )
 
-        if runtime.settings.embedded_worker_enabled:
+        should_start_embedded_worker = (
+            runtime.settings.embedded_worker_enabled
+            and runtime.settings.worker_execution_mode == "local"
+        )
+
+        if should_start_embedded_worker:
             runtime.worker.start()
 
         try:
             yield
         finally:
-            if runtime.settings.embedded_worker_enabled:
+            if should_start_embedded_worker:
                 await runtime.worker.stop()
 
     app = FastAPI(title="Cassian", version="0.1.0", lifespan=lifespan)

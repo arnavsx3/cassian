@@ -80,33 +80,32 @@ class Ec2WorkerLauncher:
         )
 
     def _build_user_data(self, job_id: str) -> str:
-        lines = [
-            "#!/bin/bash",
-            "set -euxo pipefail",
-            f"echo CASSIAN_JOB_ID={job_id} >> /etc/environment",
-            f"echo AWS_REGION={self.settings.aws_region} >> /etc/environment",
-            f"echo CHECKPOINT_BACKEND={self.settings.checkpoint_backend} >> /etc/environment",
-            f"echo QUEUE_BACKEND={self.settings.queue_backend} >> /etc/environment",
-        ]
+        environment = {
+            "CASSIAN_JOB_ID": job_id,
+            "AWS_REGION": self.settings.aws_region or "",
+            "CHECKPOINT_BACKEND": self.settings.checkpoint_backend,
+            "QUEUE_BACKEND": self.settings.queue_backend,
+            "S3_CHECKPOINT_BUCKET": self.settings.s3_checkpoint_bucket or "",
+            "S3_CHECKPOINT_PREFIX": self.settings.s3_checkpoint_prefix,
+            "SQS_QUEUE_URL": self.settings.sqs_queue_url or "",
+        }
 
-        if self.settings.s3_checkpoint_bucket:
-            lines.append(
-                f"echo S3_CHECKPOINT_BUCKET={self.settings.s3_checkpoint_bucket} >> /etc/environment"
-            )
-        if self.settings.s3_checkpoint_prefix:
-            lines.append(
-                f"echo S3_CHECKPOINT_PREFIX={self.settings.s3_checkpoint_prefix} >> /etc/environment"
-            )
-        if self.settings.sqs_queue_url:
-            lines.append(
-                f"echo SQS_QUEUE_URL={self.settings.sqs_queue_url} >> /etc/environment"
-            )
-
-        lines.extend(
-            [
-                "source /etc/environment",
-                "cd /opt/cassian",
-                "uv run cassian-worker",
-            ]
+        environment_lines = "\n".join(
+            f"{key}={value!r}" for key, value in environment.items()
         )
-        return "\n".join(lines)
+
+        return f"""#!/bin/bash
+set -euxo pipefail
+
+install -d -m 0755 /etc/cassian
+
+cat > /etc/cassian/worker.env <<'EOF'
+{environment_lines}
+EOF
+
+cd /opt/cassian
+set -a
+. /etc/cassian/worker.env
+set +a
+exec uv run cassian-worker
+"""
