@@ -1,12 +1,19 @@
+from cassian.controller.worker_dispatcher import WorkerDispatcher
 from cassian.domain.models import JobView
 from cassian.infra.queueing import JobQueue
 from cassian.services.job_state import AppState
 
 
 class JobController:
-    def __init__(self, state: AppState, job_queue: JobQueue) -> None:
+    def __init__(
+        self,
+        state: AppState,
+        job_queue: JobQueue,
+        worker_dispatcher: WorkerDispatcher | None = None,
+    ) -> None:
         self.state = state
         self.job_queue = job_queue
+        self.worker_dispatcher = worker_dispatcher
 
     async def submit_job(self, total_records: int, chunk_size: int) -> JobView:
         job = self.state.create_job(
@@ -16,6 +23,16 @@ class JobController:
 
         try:
             await self.job_queue.enqueue(job.job_id)
+
+            if self.worker_dispatcher is not None:
+                launch = self.worker_dispatcher.dispatch(job_id=job.job_id)
+                if launch is not None:
+                    self.state.attach_worker_launch(
+                        job.job_id,
+                        instance_id=launch.instance_id,
+                        instance_type=launch.instance_type,
+                        market_type=launch.market_type,
+                    )
         except Exception:
             self.state.mark_submission_failed(job.job_id)
             raise
