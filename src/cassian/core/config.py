@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     sqs_wait_time_seconds: int = 5
 
     worker_chunk_delay_seconds: float = 0.05
+    embedded_worker_enabled: bool = True
 
 
 @lru_cache
