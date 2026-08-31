@@ -31,6 +31,15 @@ class LocalWorker:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
 
+    async def process_job(self, job_id: str) -> None:
+        self.state.mark_running(job_id)
+
+        while True:
+            job = self.state.advance_job(job_id)
+            if job.status == JobStatus.COMPLETED:
+                return
+            await asyncio.sleep(self.chunk_delay_seconds)
+
     async def run(self) -> None:
         while not self._stop_event.is_set():
             try:
@@ -44,11 +53,5 @@ class LocalWorker:
             if message is None:
                 continue
 
-            self.state.mark_running(message.job_id)
-
-            while True:
-                job = self.state.advance_job(message.job_id)
-                if job.status == JobStatus.COMPLETED:
-                    await self.job_queue.ack(message)
-                    break
-                await asyncio.sleep(self.chunk_delay_seconds)
+            await self.process_job(message.job_id)
+            await self.job_queue.ack(message)
