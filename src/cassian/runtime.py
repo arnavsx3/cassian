@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from cassian.controller.job_controller import JobController
+from cassian.core.aws import build_sqs_client
 from cassian.core.config import Settings, get_settings
 from cassian.infra.checkpoints import CheckpointStore, build_checkpoint_store
 from cassian.infra.queueing import InMemoryJobQueue, JobQueue, SqsJobQueue
@@ -22,14 +23,13 @@ def build_job_queue(settings: Settings) -> JobQueue:
     if settings.queue_backend == "memory":
         return InMemoryJobQueue()
 
-    if not settings.aws_region:
-        raise ValueError("AWS_REGION is required when QUEUE_BACKEND=sqs")
     if not settings.sqs_queue_url:
         raise ValueError("SQS_QUEUE_URL is required when QUEUE_BACKEND=sqs")
 
+    sqs_client = build_sqs_client(settings)
     return SqsJobQueue(
         queue_url=settings.sqs_queue_url,
-        region_name=settings.aws_region,
+        client=sqs_client,
         wait_time_seconds=settings.sqs_wait_time_seconds,
         visibility_timeout=settings.sqs_visibility_timeout,
     )
@@ -50,6 +50,7 @@ def build_runtime(
         state=job_state,
         job_queue=job_queue,
         chunk_delay_seconds=settings.worker_chunk_delay_seconds,
+        poll_interval_seconds=settings.worker_poll_interval_seconds,
     )
 
     return AppRuntime(
