@@ -32,6 +32,8 @@ async def test_job_recovers_from_latest_checkpoint(tmp_path) -> None:
     assert checkpointed_job is not None
     assert checkpointed_job.processed_records == 50_000
     assert checkpointed_job.last_checkpoint_records == 50_000
+    assert checkpointed_job.checkpoint_count == 1
+    assert checkpointed_job.result_checksum > 0
 
     recovered_queue = InMemoryJobQueue()
     recovered_state = AppState(checkpoint_store=checkpoint_store)
@@ -69,4 +71,6 @@ async def test_job_recovers_from_latest_checkpoint(tmp_path) -> None:
     assert final_job.status == JobStatus.COMPLETED
     assert final_job.processed_records == 150_000
     assert final_job.last_checkpoint_records == 150_000
+    assert final_job.checkpoint_count == 3
+    assert final_job.result_checksum > checkpointed_job.result_checksum
     assert final_job.recovery_count == 1

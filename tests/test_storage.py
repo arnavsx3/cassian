@@ -25,6 +25,8 @@ def test_s3_checkpoint_store_round_trip() -> None:
         progress_percent=33.33,
         last_checkpoint_records=50_000,
         recovery_count=1,
+        checkpoint_count=1,
+        result_checksum=123456,
     )
     payload = job.model_dump_json(indent=2)
 
@@ -58,3 +60,5 @@ def test_s3_checkpoint_store_round_trip() -> None:
     assert loaded_job.processed_records == 50_000
     assert loaded_job.last_checkpoint_records == 50_000
     assert loaded_job.recovery_count == 1
+    assert loaded_job.checkpoint_count == 1
+    assert loaded_job.result_checksum == 123456

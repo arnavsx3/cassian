@@ -55,4 +55,6 @@ async def test_job_flows_to_completion(tmp_path) -> None:
     assert final_payload["status"] == "COMPLETED"
     assert final_payload["processed_records"] == 100_000
     assert final_payload["last_checkpoint_records"] == 100_000
+    assert final_payload["checkpoint_count"] == 2
+    assert final_payload["result_checksum"] > 0
     assert final_payload["progress_percent"] == 100.0
