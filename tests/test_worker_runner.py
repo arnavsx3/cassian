@@ -29,8 +29,7 @@ async def test_worker_can_process_job_without_shared_app_memory(tmp_path) -> Non
 
     final_job = None
     for _ in range(50):
-        reader_state = AppState(checkpoint_store=checkpoint_store)
-        final_job = reader_state.get_job(created_job.job_id)
+        final_job = api_state.get_job(created_job.job_id)
         assert final_job is not None
         if final_job.status == "COMPLETED":
             break

@@ -32,11 +32,12 @@ async def test_controller_requeues_recoverable_jobs_for_memory_queue(tmp_path) -
     job.processed_records = 50_000
     job.last_checkpoint_records = 50_000
     job.progress_percent = 33.33
-    state.checkpoint_store.save_job(job)
+    checkpoint_store.save_job(job)
 
     job_queue = InMemoryJobQueue()
     controller = JobController(
-        state=AppState(checkpoint_store=checkpoint_store), job_queue=job_queue
+        state=AppState(checkpoint_store=checkpoint_store),
+        job_queue=job_queue,
     )
 
     await controller.restore_jobs(requeue_submitting_only=False)
