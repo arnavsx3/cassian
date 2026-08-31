@@ -29,6 +29,9 @@ class JobView(BaseModel):
     recovery_count: int
     checkpoint_count: int
     result_checksum: int
+    worker_instance_id: str | None
+    worker_instance_type: str | None
+    worker_market_type: str | None
 
     @classmethod
     def new(cls, total_records: int, chunk_size: int) -> "JobView":
@@ -43,4 +46,7 @@ class JobView(BaseModel):
             recovery_count=0,
             checkpoint_count=0,
             result_checksum=0,
+            worker_instance_id=None,
+            worker_instance_type=None,
+            worker_market_type=None,
         )
