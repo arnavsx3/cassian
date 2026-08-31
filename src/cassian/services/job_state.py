@@ -18,6 +18,20 @@ class AppState:
         job = JobView.new(total_records=total_records, chunk_size=chunk_size)
         return self.job_repository.create(job)
 
+    def attach_worker_launch(
+        self,
+        job_id: str,
+        *,
+        instance_id: str,
+        instance_type: str,
+        market_type: str,
+    ) -> JobView:
+        job = self._require_job(job_id)
+        job.worker_instance_id = instance_id
+        job.worker_instance_type = instance_type
+        job.worker_market_type = market_type
+        return self.job_repository.save(job)
+
     def mark_submission_failed(self, job_id: str) -> JobView:
         job = self._require_job(job_id)
         job.status = JobStatus.SUBMISSION_FAILED
