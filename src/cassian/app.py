@@ -27,11 +27,15 @@ def create_app(
         await runtime.job_controller.restore_jobs(
             requeue_submitting_only=runtime.settings.queue_backend == "sqs"
         )
-        runtime.worker.start()
+
+        if runtime.settings.embedded_worker_enabled:
+            runtime.worker.start()
+
         try:
             yield
         finally:
-            await runtime.worker.stop()
+            if runtime.settings.embedded_worker_enabled:
+                await runtime.worker.stop()
 
     app = FastAPI(title="Cassian", version="0.1.0", lifespan=lifespan)
     app.state.settings = runtime.settings
