@@ -12,10 +12,12 @@ class LocalWorker:
         state: AppState,
         job_queue: JobQueue,
         chunk_delay_seconds: float = 0.05,
+        poll_interval_seconds: float = 1.0,
     ) -> None:
         self.state = state
         self.job_queue = job_queue
         self.chunk_delay_seconds = chunk_delay_seconds
+        self.poll_interval_seconds = poll_interval_seconds
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
 
@@ -31,7 +33,14 @@ class LocalWorker:
 
     async def run(self) -> None:
         while not self._stop_event.is_set():
-            message = await self.job_queue.receive()
+            try:
+                message = await asyncio.wait_for(
+                    self.job_queue.receive(),
+                    timeout=self.poll_interval_seconds,
+                )
+            except TimeoutError:
+                continue
+
             if message is None:
                 continue
 
