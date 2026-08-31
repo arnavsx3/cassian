@@ -1,10 +1,38 @@
 import json
 
-import boto3
 import pytest
-from botocore.stub import Stubber
 
 from cassian.infra.queueing import InMemoryJobQueue, SqsJobQueue
+
+
+class StubSqsClient:
+    def __init__(self) -> None:
+        self.deleted_receipt_handles: list[str] = []
+        self.messages: list[dict[str, str]] = []
+
+    def send_message(self, *, QueueUrl: str, MessageBody: str) -> None:
+        payload = json.loads(MessageBody)
+        self.messages.append(
+            {
+                "Body": json.dumps(payload),
+                "ReceiptHandle": "receipt-1",
+            }
+        )
+
+    def receive_message(
+        self,
+        *,
+        QueueUrl: str,
+        MaxNumberOfMessages: int,
+        WaitTimeSeconds: int,
+        VisibilityTimeout: int,
+    ) -> dict:
+        if not self.messages:
+            return {}
+        return {"Messages": [self.messages.pop(0)]}
+
+    def delete_message(self, *, QueueUrl: str, ReceiptHandle: str) -> None:
+        self.deleted_receipt_handles.append(ReceiptHandle)
 
 
 @pytest.mark.asyncio
@@ -22,53 +50,17 @@ async def test_in_memory_queue_round_trip() -> None:
 
 @pytest.mark.asyncio
 async def test_sqs_queue_round_trip() -> None:
-    client = boto3.client("sqs", region_name="ap-south-1")
+    client = StubSqsClient()
     queue = SqsJobQueue(
         queue_url="https://sqs.ap-south-1.amazonaws.com/123/test",
-        region_name="ap-south-1",
         client=client,
     )
 
-    with Stubber(client) as stubber:
-        stubber.add_response(
-            "send_message",
-            {"MessageId": "msg-1"},
-            {
-                "QueueUrl": "https://sqs.ap-south-1.amazonaws.com/123/test",
-                "MessageBody": json.dumps({"job_id": "JOB-1234"}),
-            },
-        )
-        stubber.add_response(
-            "receive_message",
-            {
-                "Messages": [
-                    {
-                        "Body": json.dumps({"job_id": "JOB-1234"}),
-                        "ReceiptHandle": "receipt-1",
-                        "MessageId": "msg-1",
-                    }
-                ]
-            },
-            {
-                "QueueUrl": "https://sqs.ap-south-1.amazonaws.com/123/test",
-                "MaxNumberOfMessages": 1,
-                "WaitTimeSeconds": 5,
-                "VisibilityTimeout": 120,
-            },
-        )
-        stubber.add_response(
-            "delete_message",
-            {},
-            {
-                "QueueUrl": "https://sqs.ap-south-1.amazonaws.com/123/test",
-                "ReceiptHandle": "receipt-1",
-            },
-        )
+    await queue.enqueue("JOB-1234")
+    message = await queue.receive()
 
-        await queue.enqueue("JOB-1234")
-        message = await queue.receive()
+    assert message is not None
+    assert message.job_id == "JOB-1234"
 
-        assert message is not None
-        assert message.job_id == "JOB-1234"
-
-        await queue.ack(message)
+    await queue.ack(message)
+    assert client.deleted_receipt_handles == ["receipt-1"]

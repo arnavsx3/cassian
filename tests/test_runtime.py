@@ -1,5 +1,5 @@
 from cassian.core.config import Settings
-from cassian.infra.queueing import InMemoryJobQueue, SqsJobQueue
+from cassian.infra.queueing import InMemoryJobQueue
 from cassian.runtime import build_job_queue
 
 
@@ -14,7 +14,7 @@ def test_build_job_queue_returns_memory_queue() -> None:
     assert isinstance(queue, InMemoryJobQueue)
 
 
-def test_build_job_queue_requires_sqs_settings() -> None:
+def test_build_job_queue_requires_sqs_queue_url() -> None:
     settings = Settings(
         queue_backend="sqs",
         checkpoint_backend="filesystem",
@@ -24,6 +24,6 @@ def test_build_job_queue_requires_sqs_settings() -> None:
     try:
         build_job_queue(settings)
     except ValueError as exc:
-        assert "AWS_REGION" in str(exc)
+        assert "SQS_QUEUE_URL" in str(exc)
     else:
-        raise AssertionError("Expected ValueError for missing AWS_REGION")
+        raise AssertionError("Expected ValueError for missing SQS_QUEUE_URL")

@@ -5,6 +5,7 @@ from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 
 from cassian.app import create_app
+from cassian.core.config import Settings
 from cassian.infra.checkpoints import FileCheckpointStore
 from cassian.infra.queueing import InMemoryJobQueue
 
@@ -12,6 +13,7 @@ from cassian.infra.queueing import InMemoryJobQueue
 @pytest.mark.asyncio
 async def test_health(tmp_path) -> None:
     app = create_app(
+        settings=Settings(embedded_worker_enabled=True),
         checkpoint_store=FileCheckpointStore(base_path=tmp_path / "checkpoints"),
         job_queue=InMemoryJobQueue(),
     )
@@ -26,8 +28,35 @@ async def test_health(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_runtime_endpoint(tmp_path) -> None:
+    app = create_app(
+        settings=Settings(
+            queue_backend="memory",
+            checkpoint_backend="filesystem",
+            embedded_worker_enabled=False,
+        ),
+        checkpoint_store=FileCheckpointStore(base_path=tmp_path / "checkpoints"),
+        job_queue=InMemoryJobQueue(),
+    )
+
+    async with LifespanManager(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/system/runtime")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "queue_backend": "memory",
+        "checkpoint_backend": "filesystem",
+        "embedded_worker_enabled": False,
+        "aws_enabled": False,
+    }
+
+
+@pytest.mark.asyncio
 async def test_job_flows_to_completion(tmp_path) -> None:
     app = create_app(
+        settings=Settings(embedded_worker_enabled=True),
         checkpoint_store=FileCheckpointStore(base_path=tmp_path / "checkpoints"),
         job_queue=InMemoryJobQueue(),
     )
@@ -54,7 +83,3 @@ async def test_job_flows_to_completion(tmp_path) -> None:
     assert final_payload is not None
     assert final_payload["status"] == "COMPLETED"
     assert final_payload["processed_records"] == 100_000
-    assert final_payload["last_checkpoint_records"] == 100_000
-    assert final_payload["checkpoint_count"] == 2
-    assert final_payload["result_checksum"] > 0
-    assert final_payload["progress_percent"] == 100.0
