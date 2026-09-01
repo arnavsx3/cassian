@@ -2,8 +2,10 @@ from cassian.controller.worker_dispatcher import WorkerDispatchPort
 from cassian.domain.models import JobView
 from cassian.infra.queueing import JobQueue
 from cassian.services.job_state import AppState
+import logging
+from datetime import UTC, datetime, timedelta
 
-
+logger = logging.getLogger(__name__)
 class JobController:
     def __init__(
         self,
@@ -30,6 +32,7 @@ class JobController:
                 await self.job_queue.enqueue(job.job_id)
 
             if self.worker_dispatcher is not None:
+                self.state.request_worker_launch(job.job_id)
                 launch = self.worker_dispatcher.dispatch(job_id=job.job_id)
                 if launch is not None:
                     job = self.state.attach_worker_launch(
@@ -60,3 +63,47 @@ class JobController:
 
     def list_jobs(self) -> list[JobView]:
         return self.state.list_jobs()
+
+    async def reconcile_stale_workers(
+        self,
+        *,
+        stale_after: timedelta,
+        now: datetime | None = None,
+    ) -> list[JobView]:
+        if self.enqueue_jobs or self.worker_dispatcher is None:
+            return []
+
+        current_time = now or datetime.now(UTC)
+        relaunched_jobs: list[JobView] = []
+
+        for stale_job in self.state.find_stale_worker_jobs(
+            stale_after=stale_after,
+            now=current_time,
+        ):
+            recovering_job = self.state.begin_recovery(
+                stale_job.job_id,
+                now=current_time,
+            )
+
+            try:
+                launch = self.worker_dispatcher.dispatch(
+                    job_id=recovering_job.job_id
+                )
+                if launch is None:
+                    raise RuntimeError("EC2 worker dispatch returned no launch result")
+
+                relaunched_jobs.append(
+                    self.state.attach_worker_launch(
+                        recovering_job.job_id,
+                        instance_id=launch.instance_id,
+                        instance_type=launch.instance_type,
+                        market_type=launch.market_type,
+                    )
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to relaunch stale worker for job %s",
+                    recovering_job.job_id,
+                )
+
+        return relaunched_jobs
