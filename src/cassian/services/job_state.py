@@ -6,6 +6,10 @@ from cassian.services.job_repository import JobRepository
 from cassian.workloads.processor import WorkloadProcessor
 
 
+class WorkerFencedError(RuntimeError):
+    """Raised when a replaced worker tries to update a job."""
+
+
 class AppState:
     def __init__(
         self,
@@ -24,11 +28,12 @@ class AppState:
         self,
         job_id: str,
         *,
+        worker_generation: int,
         instance_id: str,
         instance_type: str,
         market_type: str,
     ) -> JobView:
-        job = self._require_job(job_id)
+        job = self._require_worker_generation(job_id, worker_generation)
         job.worker_instance_id = instance_id
         job.worker_instance_type = instance_type
         job.worker_market_type = market_type
@@ -81,8 +86,13 @@ class AppState:
     def list_jobs(self) -> list[JobView]:
         return self.job_repository.list()
 
-    def mark_running(self, job_id: str) -> JobView:
-        job = self._require_job(job_id)
+    def mark_running(
+        self,
+        job_id: str,
+        *,
+        worker_generation: int | None = None,
+    ) -> JobView:
+        job = self._require_worker_generation(job_id, worker_generation)
         now = datetime.now(UTC)
 
         job.status = (
@@ -92,8 +102,13 @@ class AppState:
         job.worker_heartbeat_at = now
         return self.job_repository.save(job)
 
-    def advance_job(self, job_id: str) -> JobView:
-        job = self._require_job(job_id)
+    def advance_job(
+        self,
+        job_id: str,
+        *,
+        worker_generation: int | None = None,
+    ) -> JobView:
+        job = self._require_worker_generation(job_id, worker_generation)
         job = self.workload_processor.process_chunk(job)
 
         if job.processed_records >= job.total_records:
@@ -101,29 +116,39 @@ class AppState:
 
         return self.job_repository.save(job)
 
-    def _require_job(self, job_id: str) -> JobView:
-        job = self.job_repository.get(job_id)
-        if job is None:
-            raise KeyError(f"Unknown job_id: {job_id}")
-        return job
-
     def request_worker_launch(
         self,
         job_id: str,
         *,
+        max_attempts: int,
         now: datetime | None = None,
     ) -> JobView:
         job = self._require_job(job_id)
+
+        if job.worker_launch_attempts >= max_attempts:
+            raise RuntimeError(
+                f"Job {job_id} exceeded {max_attempts} worker launch attempts"
+            )
+
+        job.worker_generation += 1
+        job.worker_launch_attempts += 1
         job.worker_launch_requested_at = now or datetime.now(UTC)
+        job.worker_started_at = None
+        job.worker_heartbeat_at = None
         return self.job_repository.save(job)
 
     def begin_recovery(
         self,
         job_id: str,
         *,
+        expected_generation: int,
         now: datetime | None = None,
     ) -> JobView:
-        job = self._require_job(job_id)
+        job = self._require_worker_generation(job_id, expected_generation)
+
+        if job.status == JobStatus.COMPLETED:
+            raise WorkerFencedError(f"Job {job_id} already completed")
+
         job.status = JobStatus.RECOVERING
         job.recovery_count += 1
         job.worker_instance_id = None
@@ -138,9 +163,10 @@ class AppState:
         self,
         job_id: str,
         *,
+        worker_generation: int | None = None,
         now: datetime | None = None,
     ) -> JobView:
-        job = self._require_job(job_id)
+        job = self._require_worker_generation(job_id, worker_generation)
         job.worker_heartbeat_at = now or datetime.now(UTC)
         return self.job_repository.save(job)
 
@@ -168,3 +194,23 @@ class AppState:
                 stale_jobs.append(job)
 
         return stale_jobs
+
+    def _require_job(self, job_id: str) -> JobView:
+        job = self.job_repository.get(job_id)
+        if job is None:
+            raise KeyError(f"Unknown job_id: {job_id}")
+        return job
+
+    def _require_worker_generation(
+        self,
+        job_id: str,
+        worker_generation: int | None,
+    ) -> JobView:
+        job = self._require_job(job_id)
+
+        if worker_generation is not None and job.worker_generation != worker_generation:
+            raise WorkerFencedError(
+                f"Worker generation {worker_generation} is fenced for {job_id}"
+            )
+
+        return job

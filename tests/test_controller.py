@@ -8,12 +8,20 @@ from cassian.services.job_state import AppState
 
 
 class StubWorkerDispatcher:
-    def dispatch(self, *, job_id: str) -> WorkerLaunchResult | None:
+    def dispatch(
+        self,
+        *,
+        job_id: str,
+        worker_generation: int,
+    ) -> WorkerLaunchResult | None:
         return WorkerLaunchResult(
             instance_id="i-1234567890abcdef0",
             instance_type="t3.micro",
             market_type="spot",
         )
+
+    def terminate(self, *, instance_id: str) -> None:
+        return None
 
 
 @pytest.mark.asyncio
@@ -41,6 +49,7 @@ async def test_controller_records_worker_launch_metadata(tmp_path) -> None:
         state=AppState(checkpoint_store=checkpoint_store),
         job_queue=job_queue,
         worker_dispatcher=StubWorkerDispatcher(),
+        enqueue_jobs=False,
     )
 
     job = await controller.submit_job(total_records=100_000, chunk_size=50_000)
@@ -48,6 +57,8 @@ async def test_controller_records_worker_launch_metadata(tmp_path) -> None:
     assert job.worker_instance_id == "i-1234567890abcdef0"
     assert job.worker_instance_type == "t3.micro"
     assert job.worker_market_type == "spot"
+    assert job.worker_generation == 1
+    assert job.worker_launch_attempts == 1
 
 
 @pytest.mark.asyncio

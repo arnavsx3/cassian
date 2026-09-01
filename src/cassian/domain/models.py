@@ -37,6 +37,8 @@ class JobView(BaseModel):
     worker_started_at: datetime | None = None
     worker_heartbeat_at: datetime | None = None
     worker_launch_attempts: int = 0
+    worker_generation: int = 0
+    storage_etag: str | None = Field(default=None, exclude=True)
 
     @classmethod
     def new(cls, total_records: int, chunk_size: int) -> "JobView":

@@ -5,7 +5,14 @@ from cassian.core.config import Settings
 
 
 class WorkerDispatchPort(Protocol):
-    def dispatch(self, *, job_id: str) -> WorkerLaunchResult | None: ...
+    def dispatch(
+        self,
+        *,
+        job_id: str,
+        worker_generation: int,
+    ) -> WorkerLaunchResult | None: ...
+
+    def terminate(self, *, instance_id: str) -> None: ...
 
 
 class WorkerDispatcher:
@@ -17,15 +24,32 @@ class WorkerDispatcher:
         self.settings = settings
         self.ec2_launcher = ec2_launcher
 
-    def dispatch(self, *, job_id: str) -> WorkerLaunchResult | None:
+    def dispatch(
+        self,
+        *,
+        job_id: str,
+        worker_generation: int,
+    ) -> WorkerLaunchResult | None:
         if self.settings.worker_execution_mode == "local":
             return None
 
         if self.settings.worker_execution_mode == "ec2":
             if self.ec2_launcher is None:
                 raise ValueError("EC2 launcher is not configured")
-            return self.ec2_launcher.launch_spot_worker(job_id=job_id)
+            return self.ec2_launcher.launch_spot_worker(
+                job_id=job_id,
+                worker_generation=worker_generation,
+            )
 
         raise ValueError(
             f"Unsupported WORKER_EXECUTION_MODE: {self.settings.worker_execution_mode}"
         )
+
+    def terminate(self, *, instance_id: str) -> None:
+        if self.settings.worker_execution_mode == "local":
+            return
+
+        if self.ec2_launcher is None:
+            raise ValueError("EC2 launcher is not configured")
+
+        self.ec2_launcher.terminate_worker(instance_id=instance_id)

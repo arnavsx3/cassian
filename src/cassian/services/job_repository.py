@@ -7,12 +7,10 @@ class JobRepository:
         self.checkpoint_store = checkpoint_store
 
     def create(self, job: JobView) -> JobView:
-        self.checkpoint_store.save_job(job)
-        return job
+        return self.checkpoint_store.save_job(job)
 
     def save(self, job: JobView) -> JobView:
-        self.checkpoint_store.save_job(job)
-        return job
+        return self.checkpoint_store.save_job(job)
 
     def get(self, job_id: str) -> JobView | None:
         return self.checkpoint_store.load_job(job_id)

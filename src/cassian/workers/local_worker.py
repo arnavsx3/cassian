@@ -1,9 +1,13 @@
 import asyncio
 import contextlib
+import logging
 
 from cassian.domain.models import JobStatus
+from cassian.infra.checkpoints import CheckpointConflictError
 from cassian.infra.queueing import JobQueue
-from cassian.services.job_state import AppState
+from cassian.services.job_state import AppState, WorkerFencedError
+
+logger = logging.getLogger(__name__)
 
 
 class LocalWorker:
@@ -31,17 +35,34 @@ class LocalWorker:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
 
-    async def process_job(self, job_id: str) -> None:
-        self.state.mark_running(job_id)
+    async def process_job(
+        self,
+        job_id: str,
+        *,
+        worker_generation: int | None = None,
+    ) -> None:
+        try:
+            self.state.mark_running(
+                job_id,
+                worker_generation=worker_generation,
+            )
 
-        while True:
-            job = self.state.advance_job(job_id)
-            self.state.record_worker_heartbeat(job_id)
+            while True:
+                self.state.record_worker_heartbeat(
+                    job_id,
+                    worker_generation=worker_generation,
+                )
+                job = self.state.advance_job(
+                    job_id,
+                    worker_generation=worker_generation,
+                )
 
-            if job.status == JobStatus.COMPLETED:
-                return
+                if job.status == JobStatus.COMPLETED:
+                    return
 
-            await asyncio.sleep(self.chunk_delay_seconds)
+                await asyncio.sleep(self.chunk_delay_seconds)
+        except (CheckpointConflictError, WorkerFencedError):
+            logger.info("Worker for job %s was fenced and is stopping", job_id)
 
     async def run(self) -> None:
         while not self._stop_event.is_set():

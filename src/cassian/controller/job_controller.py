@@ -4,9 +4,11 @@ from datetime import UTC, datetime, timedelta
 from cassian.controller.worker_dispatcher import WorkerDispatchPort
 from cassian.domain.models import JobView
 from cassian.infra.queueing import JobQueue
-from cassian.services.job_state import AppState
+from cassian.services.job_state import AppState, WorkerFencedError
 
 logger = logging.getLogger(__name__)
+
+
 class JobController:
     def __init__(
         self,
@@ -14,11 +16,13 @@ class JobController:
         job_queue: JobQueue,
         worker_dispatcher: WorkerDispatchPort | None = None,
         enqueue_jobs: bool = True,
+        max_worker_launch_attempts: int = 3,
     ) -> None:
         self.state = state
         self.job_queue = job_queue
         self.worker_dispatcher = worker_dispatcher
         self.enqueue_jobs = enqueue_jobs
+        self.max_worker_launch_attempts = max_worker_launch_attempts
 
     async def submit_job(self, total_records: int, chunk_size: int) -> JobView:
         job = self.state.create_job(
@@ -31,22 +35,12 @@ class JobController:
 
             if self.enqueue_jobs:
                 await self.job_queue.enqueue(job.job_id)
+                return job
 
-            if self.worker_dispatcher is not None:
-                self.state.request_worker_launch(job.job_id)
-                launch = self.worker_dispatcher.dispatch(job_id=job.job_id)
-                if launch is not None:
-                    job = self.state.attach_worker_launch(
-                        job.job_id,
-                        instance_id=launch.instance_id,
-                        instance_type=launch.instance_type,
-                        market_type=launch.market_type,
-                    )
+            return self._launch_worker(job.job_id)
         except Exception:
             self.state.mark_submission_failed(job.job_id)
             raise
-
-        return job
 
     async def restore_jobs(self, *, requeue_submitting_only: bool) -> None:
         job_ids_to_enqueue = self.state.restore_incomplete_jobs(
@@ -81,30 +75,51 @@ class JobController:
             stale_after=stale_after,
             now=current_time,
         ):
-            recovering_job = self.state.begin_recovery(
-                stale_job.job_id,
-                now=current_time,
-            )
-
             try:
-                launch = self.worker_dispatcher.dispatch(
-                    job_id=recovering_job.job_id
-                )
-                if launch is None:
-                    raise RuntimeError("EC2 worker dispatch returned no launch result")
-
-                relaunched_jobs.append(
-                    self.state.attach_worker_launch(
-                        recovering_job.job_id,
-                        instance_id=launch.instance_id,
-                        instance_type=launch.instance_type,
-                        market_type=launch.market_type,
+                if stale_job.worker_instance_id is not None:
+                    self.worker_dispatcher.terminate(
+                        instance_id=stale_job.worker_instance_id
                     )
+
+                self.state.begin_recovery(
+                    stale_job.job_id,
+                    expected_generation=stale_job.worker_generation,
+                    now=current_time,
+                )
+                relaunched_jobs.append(self._launch_worker(stale_job.job_id))
+            except WorkerFencedError:
+                logger.info(
+                    "Skipping stale recovery for job %s because it changed",
+                    stale_job.job_id,
                 )
             except Exception:
                 logger.exception(
-                    "Failed to relaunch stale worker for job %s",
-                    recovering_job.job_id,
+                    "Failed to recover stale worker for job %s",
+                    stale_job.job_id,
                 )
 
         return relaunched_jobs
+
+    def _launch_worker(self, job_id: str) -> JobView:
+        if self.worker_dispatcher is None:
+            raise RuntimeError("Worker dispatcher is not configured")
+
+        launch_request = self.state.request_worker_launch(
+            job_id,
+            max_attempts=self.max_worker_launch_attempts,
+        )
+        launch = self.worker_dispatcher.dispatch(
+            job_id=job_id,
+            worker_generation=launch_request.worker_generation,
+        )
+
+        if launch is None:
+            raise RuntimeError("EC2 worker dispatch returned no launch result")
+
+        return self.state.attach_worker_launch(
+            job_id,
+            worker_generation=launch_request.worker_generation,
+            instance_id=launch.instance_id,
+            instance_type=launch.instance_type,
+            market_type=launch.market_type,
+        )

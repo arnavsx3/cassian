@@ -8,8 +8,12 @@ from cassian.core.config import Settings
 from cassian.domain.models import JobView
 
 
+class CheckpointConflictError(RuntimeError):
+    """Raised when a newer checkpoint already exists."""
+
+
 class CheckpointStore(Protocol):
-    def save_job(self, job: JobView) -> None: ...
+    def save_job(self, job: JobView) -> JobView: ...
 
     def load_job(self, job_id: str) -> JobView | None: ...
 
@@ -21,9 +25,10 @@ class FileCheckpointStore:
         self.base_path = base_path or Path("data/checkpoints")
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-    def save_job(self, job: JobView) -> None:
+    def save_job(self, job: JobView) -> JobView:
         path = self.base_path / f"{job.job_id}.json"
         path.write_text(job.model_dump_json(indent=2), encoding="utf-8")
+        return job
 
     def load_job(self, job_id: str) -> JobView | None:
         path = self.base_path / f"{job_id}.json"
@@ -49,14 +54,35 @@ class S3CheckpointStore:
         self.prefix = prefix.strip("/")
         self.client = client
 
-    def save_job(self, job: JobView) -> None:
-        payload = job.model_dump_json(indent=2).encode("utf-8")
-        self.client.put_object(
-            Bucket=self.bucket,
-            Key=self._key(job.job_id),
-            Body=payload,
-            ContentType="application/json",
-        )
+    def save_job(self, job: JobView) -> JobView:
+        request = {
+            "Bucket": self.bucket,
+            "Key": self._key(job.job_id),
+            "Body": job.model_dump_json(indent=2).encode("utf-8"),
+            "ContentType": "application/json",
+        }
+
+        if job.storage_etag is None:
+            request["IfNoneMatch"] = "*"
+        else:
+            request["IfMatch"] = job.storage_etag
+
+        try:
+            response = self.client.put_object(**request)
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code")
+            if error_code in {
+                "409",
+                "412",
+                "ConditionalRequestConflict",
+                "PreconditionFailed",
+            }:
+                raise CheckpointConflictError(
+                    f"Checkpoint changed concurrently for job {job.job_id}"
+                ) from exc
+            raise
+
+        return job.model_copy(update={"storage_etag": response["ETag"]})
 
     def load_job(self, job_id: str) -> JobView | None:
         try:
@@ -71,7 +97,8 @@ class S3CheckpointStore:
             raise
 
         payload = response["Body"].read().decode("utf-8")
-        return JobView.model_validate_json(payload)
+        job = JobView.model_validate_json(payload)
+        return job.model_copy(update={"storage_etag": response["ETag"]})
 
     def load_all_jobs(self) -> list[JobView]:
         jobs: list[JobView] = []
@@ -87,7 +114,8 @@ class S3CheckpointStore:
                     Key=item["Key"],
                 )
                 payload = response["Body"].read().decode("utf-8")
-                jobs.append(JobView.model_validate_json(payload))
+                job = JobView.model_validate_json(payload)
+                jobs.append(job.model_copy(update={"storage_etag": response["ETag"]}))
 
         return jobs
 

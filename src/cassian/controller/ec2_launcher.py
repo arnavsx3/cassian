@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from shlex import quote
 
 from cassian.core.aws import build_ec2_client
 from cassian.core.config import Settings
@@ -16,7 +17,12 @@ class Ec2WorkerLauncher:
         self.settings = settings
         self.client = client or build_ec2_client(settings)
 
-    def launch_spot_worker(self, *, job_id: str) -> WorkerLaunchResult:
+    def launch_spot_worker(
+        self,
+        *,
+        job_id: str,
+        worker_generation: int,
+    ) -> WorkerLaunchResult:
         if not self.settings.ec2_worker_ami_id:
             raise ValueError("EC2_WORKER_AMI_ID is required for EC2 worker launches")
         if not self.settings.ec2_worker_instance_type:
@@ -51,6 +57,7 @@ class Ec2WorkerLauncher:
             IamInstanceProfile={
                 "Name": self.settings.ec2_worker_instance_profile_name,
             },
+            InstanceInitiatedShutdownBehavior="terminate",
             InstanceMarketOptions={
                 "MarketType": "spot",
                 "SpotOptions": {
@@ -58,13 +65,17 @@ class Ec2WorkerLauncher:
                     "InstanceInterruptionBehavior": "terminate",
                 },
             },
-            UserData=self._build_user_data(job_id),
+            UserData=self._build_user_data(job_id, worker_generation),
             TagSpecifications=[
                 {
                     "ResourceType": "instance",
                     "Tags": [
                         {"Key": "Name", "Value": f"cassian-worker-{job_id.lower()}"},
                         {"Key": "CassianJobId", "Value": job_id},
+                        {
+                            "Key": "CassianWorkerGeneration",
+                            "Value": str(worker_generation),
+                        },
                         {"Key": "CassianManaged", "Value": "true"},
                     ],
                 }
@@ -79,9 +90,17 @@ class Ec2WorkerLauncher:
             market_type="spot",
         )
 
-    def _build_user_data(self, job_id: str) -> str:
+    def terminate_worker(self, *, instance_id: str) -> None:
+        self.client.terminate_instances(InstanceIds=[instance_id])
+
+    def _build_user_data(
+        self,
+        job_id: str,
+        worker_generation: int,
+    ) -> str:
         environment = {
             "CASSIAN_JOB_ID": job_id,
+            "CASSIAN_WORKER_GENERATION": str(worker_generation),
             "AWS_REGION": self.settings.aws_region or "",
             "CHECKPOINT_BACKEND": self.settings.checkpoint_backend,
             "QUEUE_BACKEND": self.settings.queue_backend,
@@ -91,7 +110,7 @@ class Ec2WorkerLauncher:
         }
 
         environment_lines = "\n".join(
-            f"{key}={value!r}" for key, value in environment.items()
+            f"{key}={quote(str(value))}" for key, value in environment.items()
         )
 
         return f"""#!/bin/bash
@@ -107,5 +126,7 @@ cd /opt/cassian
 set -a
 . /etc/cassian/worker.env
 set +a
-exec uv run cassian-worker
+
+trap 'shutdown -h now' EXIT
+uv run cassian-worker
 """

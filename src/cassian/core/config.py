@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     worker_execution_mode: Literal["local", "ec2"] = "local"
     worker_heartbeat_timeout_seconds: int = Field(default=90, gt=0)
     controller_reconcile_interval_seconds: int = Field(default=30, gt=0)
+    max_worker_launch_attempts: int = Field(default=3, gt=0)
 
     ec2_worker_ami_id: str | None = None
     ec2_worker_instance_type: str | None = None

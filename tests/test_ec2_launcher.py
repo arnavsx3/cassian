@@ -5,6 +5,7 @@ from cassian.core.config import Settings
 class StubEc2Client:
     def __init__(self) -> None:
         self.run_instances_calls: list[dict] = []
+        self.terminate_instances_calls: list[dict] = []
 
     def run_instances(self, **kwargs):
         self.run_instances_calls.append(kwargs)
@@ -16,8 +17,11 @@ class StubEc2Client:
             ]
         }
 
+    def terminate_instances(self, **kwargs) -> None:
+        self.terminate_instances_calls.append(kwargs)
 
-def test_ec2_launcher_creates_spot_instance_request() -> None:
+
+def test_ec2_launcher_creates_terminating_spot_worker() -> None:
     client = StubEc2Client()
     settings = Settings(
         aws_region="ap-south-1",
@@ -36,13 +40,23 @@ def test_ec2_launcher_creates_spot_instance_request() -> None:
     )
 
     launcher = Ec2WorkerLauncher(settings=settings, client=client)
-    result = launcher.launch_spot_worker(job_id="JOB-ABCD1234")
+    result = launcher.launch_spot_worker(
+        job_id="JOB-ABCD1234",
+        worker_generation=2,
+    )
 
     assert result.instance_id == "i-1234567890abcdef0"
     assert result.market_type == "spot"
-    assert len(client.run_instances_calls) == 1
 
     request = client.run_instances_calls[0]
     assert request["ImageId"] == "ami-12345678"
     assert request["InstanceType"] == "t3.micro"
     assert request["InstanceMarketOptions"]["MarketType"] == "spot"
+    assert request["InstanceInitiatedShutdownBehavior"] == "terminate"
+    assert "CASSIAN_WORKER_GENERATION=2" in request["UserData"]
+
+    launcher.terminate_worker(instance_id="i-1234567890abcdef0")
+
+    assert client.terminate_instances_calls == [
+        {"InstanceIds": ["i-1234567890abcdef0"]}
+    ]
