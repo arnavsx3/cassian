@@ -1,4 +1,16 @@
 from dataclasses import dataclass
+from enum import Enum
+
+
+class PlacementStrategyName(str, Enum):
+    CHEAPEST = "CHEAPEST"
+    RISK_AWARE = "RISK_AWARE"
+    ON_DEMAND = "ON_DEMAND"
+
+
+class WorkerMarketType(str, Enum):
+    SPOT = "spot"
+    ON_DEMAND = "on-demand"
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,3 +75,11 @@ class CostEstimate:
     interruption_probability: float
     expected_recovery_cost: float
     expected_total_cost: float
+
+
+@dataclass(frozen=True, slots=True)
+class PlacementDecision:
+    strategy: PlacementStrategyName
+    market_type: WorkerMarketType
+    profile: SpotPoolProfile
+    cost_estimate: CostEstimate
