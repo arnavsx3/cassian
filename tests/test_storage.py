@@ -30,6 +30,10 @@ def test_s3_checkpoint_store_round_trip() -> None:
         worker_instance_id=None,
         worker_instance_type=None,
         worker_market_type=None,
+        required_vcpus=2,
+        required_memory_gib=4.0,
+        estimated_runtime_hours=6.0,
+        checkpoint_interval_hours=0.5,
     )
     payload = job.model_dump_json(indent=2)
 

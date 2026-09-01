@@ -32,8 +32,16 @@ class Settings(BaseSettings):
     controller_reconcile_interval_seconds: int = Field(default=30, gt=0)
     max_worker_launch_attempts: int = Field(default=3, gt=0)
 
+    placement_strategy: Literal[
+        "CHEAPEST",
+        "RISK_AWARE",
+        "ON_DEMAND",
+    ] = "RISK_AWARE"
+    placement_checkpoint_recovery_cost: float = Field(default=2.0, ge=0)
+    placement_relaunch_cost: float = Field(default=8.0, ge=0)
+
     ec2_worker_ami_id: str | None = None
-    ec2_worker_instance_type: str | None = None
+    ec2_worker_instance_type_override: str | None = None
     ec2_worker_instance_profile_name: str | None = None
     ec2_worker_subnet_id: str | None = None
     ec2_worker_security_group_ids: list[str] = Field(default_factory=list)

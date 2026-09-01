@@ -24,10 +24,23 @@ class JobController:
         self.enqueue_jobs = enqueue_jobs
         self.max_worker_launch_attempts = max_worker_launch_attempts
 
-    async def submit_job(self, total_records: int, chunk_size: int) -> JobView:
+    async def submit_job(
+        self,
+        *,
+        total_records: int,
+        chunk_size: int,
+        required_vcpus: int,
+        required_memory_gib: float,
+        estimated_runtime_hours: float,
+        checkpoint_interval_hours: float,
+    ) -> JobView:
         job = self.state.create_job(
             total_records=total_records,
             chunk_size=chunk_size,
+            required_vcpus=required_vcpus,
+            required_memory_gib=required_memory_gib,
+            estimated_runtime_hours=estimated_runtime_hours,
+            checkpoint_interval_hours=checkpoint_interval_hours,
         )
 
         try:
@@ -108,9 +121,17 @@ class JobController:
             job_id,
             max_attempts=self.max_worker_launch_attempts,
         )
+        selection = self.worker_dispatcher.select_placement(job=launch_request)
+        placed_job = self.state.record_placement_decision(
+            job_id,
+            worker_generation=launch_request.worker_generation,
+            decision=selection.decision,
+            source=selection.source,
+        )
         launch = self.worker_dispatcher.dispatch(
             job_id=job_id,
-            worker_generation=launch_request.worker_generation,
+            worker_generation=placed_job.worker_generation,
+            decision=selection.decision,
         )
 
         if launch is None:
@@ -118,7 +139,7 @@ class JobController:
 
         return self.state.attach_worker_launch(
             job_id,
-            worker_generation=launch_request.worker_generation,
+            worker_generation=placed_job.worker_generation,
             instance_id=launch.instance_id,
             instance_type=launch.instance_type,
             market_type=launch.market_type,

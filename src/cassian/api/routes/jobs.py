@@ -13,11 +13,15 @@ async def create_job(request: Request, payload: JobCreate) -> JobView:
         return await controller.submit_job(
             total_records=payload.total_records,
             chunk_size=payload.chunk_size,
+            required_vcpus=payload.required_vcpus,
+            required_memory_gib=payload.required_memory_gib,
+            estimated_runtime_hours=payload.estimated_runtime_hours,
+            checkpoint_interval_hours=payload.checkpoint_interval_hours,
         )
     except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail="Failed to dispatch job to the queue.",
+            detail="Failed to dispatch job to a worker.",
         ) from exc
 
 

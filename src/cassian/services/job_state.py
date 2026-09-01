@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from cassian.domain.models import JobStatus, JobView
 from cassian.infra.checkpoints import CheckpointStore, FileCheckpointStore
+from cassian.placement.models import PlacementDecision
 from cassian.services.job_repository import JobRepository
 from cassian.workloads.processor import WorkloadProcessor
 
@@ -20,9 +21,44 @@ class AppState:
         self.job_repository = JobRepository(checkpoint_store=checkpoint_store)
         self.workload_processor = workload_processor or WorkloadProcessor()
 
-    def create_job(self, total_records: int, chunk_size: int) -> JobView:
-        job = JobView.new(total_records=total_records, chunk_size=chunk_size)
+    def create_job(
+        self,
+        *,
+        total_records: int,
+        chunk_size: int,
+        required_vcpus: int = 2,
+        required_memory_gib: float = 4.0,
+        estimated_runtime_hours: float = 6.0,
+        checkpoint_interval_hours: float = 0.5,
+    ) -> JobView:
+        job = JobView.new(
+            total_records=total_records,
+            chunk_size=chunk_size,
+            required_vcpus=required_vcpus,
+            required_memory_gib=required_memory_gib,
+            estimated_runtime_hours=estimated_runtime_hours,
+            checkpoint_interval_hours=checkpoint_interval_hours,
+        )
         return self.job_repository.create(job)
+
+    def record_placement_decision(
+        self,
+        job_id: str,
+        *,
+        worker_generation: int,
+        decision: PlacementDecision,
+        source: str,
+    ) -> JobView:
+        job = self._require_worker_generation(job_id, worker_generation)
+        job.placement_strategy = decision.strategy.value
+        job.placement_source = source
+        job.placement_instance_type = decision.profile.instance_type
+        job.placement_market_type = decision.market_type.value
+        job.placement_expected_total_cost = decision.cost_estimate.expected_total_cost
+        job.placement_interruption_probability = (
+            decision.cost_estimate.interruption_probability
+        )
+        return self.job_repository.save(job)
 
     def attach_worker_launch(
         self,
