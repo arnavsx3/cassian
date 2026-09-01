@@ -22,6 +22,14 @@ from cassian.placement.models import (
     WorkerMarketType,
     WorkloadRequirements,
 )
+from cassian.placement.simulator import (
+    SimulationAssumptions,
+    SimulationConfig,
+    SimulationResult,
+    format_comparison_table,
+    simulate_comparison,
+    simulate_strategy,
+)
 from cassian.placement.strategies import (
     CheapestStrategy,
     OnDemandStrategy,
@@ -40,14 +48,20 @@ __all__ = [
     "PlacementStrategyName",
     "RecoveryCostModel",
     "RiskAwareStrategy",
+    "SimulationAssumptions",
+    "SimulationConfig",
+    "SimulationResult",
     "SpotPoolProfile",
     "WorkerMarketType",
     "WorkloadRequirements",
     "estimate_on_demand_job_cost",
     "estimate_spot_job_cost",
     "filter_eligible_profiles",
+    "format_comparison_table",
     "get_spot_pool_profiles",
     "get_strategy",
     "interruption_probability_for_runtime",
     "require_eligible_profiles",
+    "simulate_comparison",
+    "simulate_strategy",
 ]
