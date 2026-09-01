@@ -1,6 +1,6 @@
 from enum import Enum
 from uuid import uuid4
-
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 
@@ -32,6 +32,10 @@ class JobView(BaseModel):
     worker_instance_id: str | None
     worker_instance_type: str | None
     worker_market_type: str | None
+    worker_launch_requested_at: datetime | None = None
+    worker_started_at: datetime | None = None
+    worker_heartbeat_at: datetime | None = None
+    worker_launch_attempts: int = 0
 
     @classmethod
     def new(cls, total_records: int, chunk_size: int) -> "JobView":

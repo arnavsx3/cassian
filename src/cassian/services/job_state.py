@@ -2,6 +2,7 @@ from cassian.domain.models import JobStatus, JobView
 from cassian.infra.checkpoints import CheckpointStore, FileCheckpointStore
 from cassian.services.job_repository import JobRepository
 from cassian.workloads.processor import WorkloadProcessor
+from datetime import UTC, datetime, timedelta
 
 
 class AppState:
@@ -100,3 +101,65 @@ class AppState:
         if job is None:
             raise KeyError(f"Unknown job_id: {job_id}")
         return job
+
+    def request_worker_launch(
+        self,
+        job_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> JobView:
+        job = self._require_job(job_id)
+        job.worker_launch_requested_at = now or datetime.now(UTC)
+        return self.job_repository.save(job)
+
+    def begin_recovery(
+        self,
+        job_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> JobView:
+        job = self._require_job(job_id)
+        job.status = JobStatus.RECOVERING
+        job.recovery_count += 1
+        job.worker_instance_id = None
+        job.worker_instance_type = None
+        job.worker_market_type = None
+        job.worker_started_at = None
+        job.worker_heartbeat_at = None
+        job.worker_launch_requested_at = now or datetime.now(UTC)
+        return self.job_repository.save(job)
+
+    def record_worker_heartbeat(
+        self,
+        job_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> JobView:
+        job = self._require_job(job_id)
+        job.worker_heartbeat_at = now or datetime.now(UTC)
+        return self.job_repository.save(job)
+
+    def find_stale_worker_jobs(
+        self,
+        *,
+        stale_after: timedelta,
+        now: datetime | None = None,
+    ) -> list[JobView]:
+        current_time = now or datetime.now(UTC)
+        cutoff = current_time - stale_after
+        stale_jobs: list[JobView] = []
+
+        for job in self.job_repository.list():
+            if job.status not in {
+                JobStatus.QUEUED,
+                JobStatus.RUNNING,
+                JobStatus.RECOVERING,
+            }:
+                continue
+
+            last_signal = job.worker_heartbeat_at or job.worker_launch_requested_at
+
+            if last_signal is not None and last_signal <= cutoff:
+                stale_jobs.append(job)
+
+        return stale_jobs
