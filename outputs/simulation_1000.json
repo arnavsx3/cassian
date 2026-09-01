@@ -1,0 +1,44 @@
+[
+  {
+    "average_cost_per_job": 0.4361703702753129,
+    "average_recovery_time_hours": 0.00625,
+    "completed_jobs": 1000,
+    "completion_rate_percent": 100.0,
+    "failed_jobs": 0,
+    "instance_type": "c6i.large",
+    "interruption_count": 25,
+    "market_type": "spot",
+    "strategy": "CHEAPEST",
+    "total_cost": 436.1703702753129,
+    "total_jobs": 1000,
+    "total_recovery_time_hours": 6.25
+  },
+  {
+    "average_cost_per_job": 0.44419325167428164,
+    "average_recovery_time_hours": 0.00525,
+    "completed_jobs": 1000,
+    "completion_rate_percent": 100.0,
+    "failed_jobs": 0,
+    "instance_type": "m6i.large",
+    "interruption_count": 21,
+    "market_type": "spot",
+    "strategy": "RISK_AWARE",
+    "total_cost": 444.19325167428167,
+    "total_jobs": 1000,
+    "total_recovery_time_hours": 5.25
+  },
+  {
+    "average_cost_per_job": 0.5760000000000001,
+    "average_recovery_time_hours": 0.0,
+    "completed_jobs": 1000,
+    "completion_rate_percent": 100.0,
+    "failed_jobs": 0,
+    "instance_type": "c6i.large",
+    "interruption_count": 0,
+    "market_type": "on-demand",
+    "strategy": "ON_DEMAND",
+    "total_cost": 576.0000000000001,
+    "total_jobs": 1000,
+    "total_recovery_time_hours": 0.0
+  }
+]

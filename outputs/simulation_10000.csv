@@ -1,0 +1,4 @@
+strategy,instance_type,market_type,total_jobs,completed_jobs,failed_jobs,completion_rate_percent,interruption_count,total_cost,average_cost_per_job,total_recovery_time_hours,average_recovery_time_hours
+CHEAPEST,c6i.large,spot,10000,10000,0,100.0,234,4201.741708935029,0.4201741708935029,58.5,0.00585
+RISK_AWARE,m6i.large,spot,10000,9999,1,99.99,181,4141.672354115868,0.4141672354115868,45.0,0.0045
+ON_DEMAND,c6i.large,on-demand,10000,10000,0,100.0,0,5760.000000000001,0.5760000000000001,0.0,0.0
