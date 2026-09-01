@@ -82,9 +82,13 @@ class AppState:
 
     def mark_running(self, job_id: str) -> JobView:
         job = self._require_job(job_id)
+        now = datetime.now(UTC)
+
         job.status = (
             JobStatus.RUNNING if job.processed_records == 0 else JobStatus.RECOVERING
         )
+        job.worker_started_at = now
+        job.worker_heartbeat_at = now
         return self.job_repository.save(job)
 
     def advance_job(self, job_id: str) -> JobView:
