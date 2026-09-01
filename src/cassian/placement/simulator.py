@@ -1,5 +1,8 @@
+import csv
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass
+from io import StringIO
 from random import Random
 
 from cassian.placement.cost_model import interruption_probability_for_runtime
@@ -11,6 +14,21 @@ from cassian.placement.models import (
     WorkloadRequirements,
 )
 from cassian.placement.strategies import get_strategy
+
+SIMULATION_RESULT_COLUMNS = (
+    "strategy",
+    "instance_type",
+    "market_type",
+    "total_jobs",
+    "completed_jobs",
+    "failed_jobs",
+    "completion_rate_percent",
+    "interruption_count",
+    "total_cost",
+    "average_cost_per_job",
+    "total_recovery_time_hours",
+    "average_recovery_time_hours",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +79,22 @@ class SimulationResult:
     @property
     def completion_rate_percent(self) -> float:
         return (self.completed_jobs / self.total_jobs) * 100
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return {
+            "strategy": self.strategy.value,
+            "instance_type": self.instance_type,
+            "market_type": self.market_type.value,
+            "total_jobs": self.total_jobs,
+            "completed_jobs": self.completed_jobs,
+            "failed_jobs": self.failed_jobs,
+            "completion_rate_percent": self.completion_rate_percent,
+            "interruption_count": self.interruption_count,
+            "total_cost": self.total_cost,
+            "average_cost_per_job": self.average_cost_per_job,
+            "total_recovery_time_hours": self.total_recovery_time_hours,
+            "average_recovery_time_hours": self.average_recovery_time_hours,
+        }
 
 
 def simulate_comparison(
@@ -143,6 +177,29 @@ def format_comparison_table(results: Iterable[SimulationResult]) -> str:
             separator,
             *(format_row(row) for row in rows),
         ]
+    )
+
+
+def format_comparison_csv(results: Iterable[SimulationResult]) -> str:
+    output = StringIO(newline="")
+    fieldnames: list[str] = list(SIMULATION_RESULT_COLUMNS)
+    writer = csv.DictWriter(
+        output,
+        fieldnames=fieldnames,
+    )
+    writer.writeheader()
+
+    for result in results:
+        writer.writerow(result.to_dict())
+
+    return output.getvalue()
+
+
+def format_comparison_json(results: Iterable[SimulationResult]) -> str:
+    return json.dumps(
+        [result.to_dict() for result in results],
+        indent=2,
+        sort_keys=True,
     )
 
 

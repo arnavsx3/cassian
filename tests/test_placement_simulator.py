@@ -1,3 +1,7 @@
+import csv
+import json
+from io import StringIO
+
 import pytest
 
 from cassian.placement.models import (
@@ -10,6 +14,8 @@ from cassian.placement.models import (
 from cassian.placement.simulator import (
     SimulationAssumptions,
     SimulationConfig,
+    format_comparison_csv,
+    format_comparison_json,
     format_comparison_table,
     simulate_comparison,
     simulate_strategy,
@@ -110,3 +116,28 @@ def test_comparison_table_contains_each_strategy(
     assert "CHEAPEST" in table
     assert "RISK_AWARE" in table
     assert "ON_DEMAND" in table
+
+
+def test_csv_output_round_trips_simulation_result(
+    config: SimulationConfig,
+) -> None:
+    results = simulate_comparison(config)
+    parsed_rows = list(csv.DictReader(StringIO(format_comparison_csv(results))))
+
+    assert len(parsed_rows) == len(results)
+    assert parsed_rows[0]["strategy"] == results[0].strategy.value
+    assert int(parsed_rows[0]["total_jobs"]) == results[0].total_jobs
+    assert float(parsed_rows[0]["total_cost"]) == pytest.approx(results[0].total_cost)
+
+
+def test_json_output_round_trips_simulation_result(
+    config: SimulationConfig,
+) -> None:
+    results = simulate_comparison(config)
+    parsed_results = json.loads(format_comparison_json(results))
+
+    assert len(parsed_results) == len(results)
+    assert parsed_results[0]["strategy"] == results[0].strategy.value
+    assert parsed_results[0]["instance_type"] == results[0].instance_type
+    assert parsed_results[0]["total_jobs"] == results[0].total_jobs
+    assert parsed_results[0]["total_cost"] == pytest.approx(results[0].total_cost)
