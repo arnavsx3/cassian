@@ -17,8 +17,9 @@ dependencies = [
 
 [project.scripts]
 cassian = "cassian.main:main"
-cassian-worker = "cassian.workers.runner:main"
 cassian-controller = "cassian.controller.runner:main"
+cassian-simulate = "cassian.placement.simulation_runner:main"
+cassian-worker = "cassian.workers.runner:main"
 
 [build-system]
 requires = ["uv_build>=0.11.11,<0.12.0"]
