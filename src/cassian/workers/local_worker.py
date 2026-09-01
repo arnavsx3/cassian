@@ -36,8 +36,11 @@ class LocalWorker:
 
         while True:
             job = self.state.advance_job(job_id)
+            self.state.record_worker_heartbeat(job_id)
+
             if job.status == JobStatus.COMPLETED:
                 return
+
             await asyncio.sleep(self.chunk_delay_seconds)
 
     async def run(self) -> None:
