@@ -1,9 +1,10 @@
+import logging
+from datetime import UTC, datetime, timedelta
+
 from cassian.controller.worker_dispatcher import WorkerDispatchPort
 from cassian.domain.models import JobView
 from cassian.infra.queueing import JobQueue
 from cassian.services.job_state import AppState
-import logging
-from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 class JobController:

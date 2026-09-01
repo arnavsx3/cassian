@@ -1,8 +1,9 @@
+from datetime import UTC, datetime, timedelta
+
 from cassian.domain.models import JobStatus, JobView
 from cassian.infra.checkpoints import CheckpointStore, FileCheckpointStore
 from cassian.services.job_repository import JobRepository
 from cassian.workloads.processor import WorkloadProcessor
-from datetime import UTC, datetime, timedelta
 
 
 class AppState:
